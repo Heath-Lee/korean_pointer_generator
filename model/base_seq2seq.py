@@ -13,14 +13,18 @@ class seq2seq:
     def get_model(self):
         # Define an input sequence and process it.
         encoder_inputs = Input(shape=(None,))
-        encoder_inputs_emb = Embedding(input_dim=self.num_encoder_tokens, output_dim=self.embedding_dim)(encoder_inputs)
+        encoder_inputs_emb = Embedding(input_dim=self.num_encoder_tokens,
+                                       output_dim=self.embedding_dim,
+                                       mask_zero=True)(encoder_inputs)
         encoder = LSTM(self.hidden_dim, return_state=True)
         encoder_outputs, state_h, state_c = encoder(encoder_inputs_emb)
         # We discard `encoder_outputs` and only keep the states.
         encoder_states = [state_h, state_c]
         # Set up the decoder, using `encoder_states` as initial state.
         decoder_inputs = Input(shape=(None,))
-        decoder_inputs_emb = Embedding(input_dim=self.num_decoder_tokens, output_dim=64)(decoder_inputs)
+        decoder_inputs_emb = Embedding(input_dim=self.num_decoder_tokens,
+                                       output_dim=self.embedding_dim,
+                                       mask_zero=True)(decoder_inputs)
         # We set up our decoder to return full output sequences,
         # and to return internal states as well. We don't use the
         # return states in the training model, but we will use them in inference.

@@ -55,10 +55,10 @@ if __name__ == '__main__':
     # make onehot summary output
     summ_output = make_onehot_target(summ_output, num_token=len(t_summ.index_word))
 
-    # to np.array
-    txt = np.array(txt)
-    summ_input = np.array(summ_input)
-    summ_output = np.array(summ_output)
+    # pad sequence
+    txt = sequence.pad_sequences(txt)
+    summ_input = sequence.pad_sequences(summ_input)
+    summ_output = sequence.pad_sequences(summ_output)
 
     # model
     model = seq2seq(num_encoder_tokens=len(t_txt.index_word), embedding_dim=64,
@@ -66,4 +66,4 @@ if __name__ == '__main__':
     summaryModel = model.get_model()
     summaryModel.compile(optimizer='Adam', loss='categorical_crossentropy')
     summaryModel.fit([txt, summ_input], np.array(summ_output),
-                     batch_size=1, epochs=2, validation_split=0.1)
+                     batch_size=32, epochs=250, validation_split=0.1)
