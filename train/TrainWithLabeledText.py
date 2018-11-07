@@ -3,6 +3,11 @@ from tensorflow import keras
 import numpy as np
 from tensorflow.keras.preprocessing import text, sequence
 from model.base_seq2seq import seq2seq
+from model.attention_seq2seq import seq2seq_attention
+from tqdm import tqdm
+import os
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"   # see issue #152
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
 def make_target_input(target):
@@ -17,7 +22,7 @@ def make_target_output(target):
 
 def make_onehot_target(target, num_token):
     out = []
-    for i, x in enumerate(target):
+    for i, x in tqdm(enumerate(target)):
         x = np.array(x) - 1
         out.append(np.eye(num_token)[x])
     return out
@@ -56,14 +61,16 @@ if __name__ == '__main__':
     summ_output = make_onehot_target(summ_output, num_token=len(t_summ.index_word))
 
     # pad sequence
-    txt = sequence.pad_sequences(txt)
-    summ_input = sequence.pad_sequences(summ_input)
-    summ_output = sequence.pad_sequences(summ_output)
+    txt = sequence.pad_sequences(txt, maxlen=100, truncating='post', padding='pre')
+    summ_input = sequence.pad_sequences(summ_input, maxlen=50, padding='post')
+    summ_output = sequence.pad_sequences(summ_output, maxlen=50, padding='post')
 
-    # model
-    model = seq2seq(num_encoder_tokens=len(t_txt.index_word), embedding_dim=64,
-                    hidden_dim=128, num_decoder_tokens=len(t_summ.index_word))
+    # train model
+    model = seq2seq_attention(num_encoder_tokens=len(t_txt.index_word), embedding_dim=64,
+                              hidden_dim=128, num_decoder_tokens=len(t_summ.index_word))
     summaryModel = model.get_model()
     summaryModel.compile(optimizer='Adam', loss='categorical_crossentropy')
-    summaryModel.fit([txt, summ_input], np.array(summ_output),
-                     batch_size=32, epochs=250, validation_split=0.1)
+    summaryModel.fit([txt, summ_input], summ_output,
+                     batch_size=4, epochs=25, validation_split=0.1, verbose=2)
+    summaryModel.save_weights('seq2seq_base.h5')
+

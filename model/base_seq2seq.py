@@ -1,3 +1,4 @@
+# https://github.com/hamelsmu/Seq2Seq_Tutorial
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, LSTM, Dense, Embedding
 
