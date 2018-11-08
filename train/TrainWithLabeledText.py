@@ -1,8 +1,5 @@
-import tensorflow as tf
-from tensorflow import keras
 import numpy as np
 from tensorflow.keras.preprocessing import text, sequence
-from model.base_seq2seq import seq2seq
 from model.attention_seq2seq import seq2seq_attention
 from tqdm import tqdm
 import os
@@ -56,6 +53,9 @@ if __name__ == '__main__':
     # make summary output dataset
     summ_input = make_target_input(summ)
     summ_output = make_target_output(summ)
+
+    # generator
+
 
     # make onehot summary output
     summ_output = make_onehot_target(summ_output, num_token=len(t_summ.index_word))

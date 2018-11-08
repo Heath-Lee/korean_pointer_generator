@@ -1,8 +1,8 @@
 from keras import backend as K
 from keras.layers import Input, Embedding, Bidirectional
 from keras.layers import concatenate
-from keras.layers import RNN, LSTM, GRUCell
-from keras.layers import Dense, Lambda
+from keras.layers import RNN, LSTM, LSTMCell, GRUCell
+from keras.layers import TimeDistributed, Dense, Concatenate, Lambda
 from keras.models import Model
 from model.custom_layers import DenseAnnotationAttention
 
@@ -30,11 +30,11 @@ class seq2seq_attention:
         decoder_inputs = Input(shape=(None,))
 
         # word embedding layer for text
-        encoder_inputs_emb = Embedding(input_dim=self.num_encoder_tokens,
+        encoder_inputs_emb = Embedding(input_dim=self.num_encoder_tokens + 1,
                                        output_dim=self.embedding_dim,
                                        mask_zero=True)(encoder_inputs)
         # word embedding layer for summary
-        decoder_inputs_emb = Embedding(input_dim=self.num_decoder_tokens,
+        decoder_inputs_emb = Embedding(input_dim=self.num_decoder_tokens + 1,
                                        output_dim=self.embedding_dim,
                                        mask_zero=True)(decoder_inputs)
 
@@ -56,7 +56,7 @@ class seq2seq_attention:
         cell = DenseAnnotationAttention(cell=GRUCell(self.hidden_dim),
                                         units=self.hidden_dim,
                                         input_mode="concatenate",
-                                        output_mode="concatenate") # cell_output
+                                        output_mode="cell_output")
 
         # TODO output_mode="concatenate", see TODO(3)/A
         decoder_o, decoder_h, decoder_c = RNN(cell=cell,
@@ -65,8 +65,8 @@ class seq2seq_attention:
                                                                  initial_state=initial_state,
                                                                  constants=encoder_o)
         decoder_o = Dense(self.hidden_dim * 2)(concatenate([decoder_o, decoder_inputs_emb]))
-        y_pred = Dense(self.num_decoder_tokens,
-                       activation='softmax')(decoder_o)
+        y_pred = TimeDistributed(Dense(self.num_decoder_tokens + 1,
+                                       activation='softmax'))(decoder_o)
 
         model = Model([encoder_inputs, decoder_inputs], y_pred)
         return model
