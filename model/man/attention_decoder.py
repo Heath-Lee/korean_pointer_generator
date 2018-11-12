@@ -1,10 +1,10 @@
-import tensorflow as tf
+# import tensorflow as tf
 from keras import backend as K
 from keras import regularizers, constraints, initializers, activations
 from keras.layers.recurrent import Recurrent
 from keras.engine import InputSpec
 
-tfPrint = lambda d, T: tf.Print(input_=T, data=[T, tf.shape(T)], message=d)
+# tfPrint = lambda d, T: tf.Print(input_=T, data=[T, tf.shape(T)], message=d)
 
 class AttentionDecoder(Recurrent):
     def __init__(self, units, output_dim,
