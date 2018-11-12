@@ -100,8 +100,11 @@ class seq2seq_attention:
         encoder_o = x_enc[0]
         initial_h_lstm = concatenate([x_enc[1], x_enc[2]])
         initial_c_lstm = concatenate([x_enc[3], x_enc[4]])
-        initial_state = self.summaryModel.get_layer('decoder_state')(concatenate([initial_h_lstm,
+        initial_decoder_state = self.summaryModel.get_layer('decoder_state')(concatenate([initial_h_lstm,
                                                                                   initial_c_lstm]))
+        initial_attention_h = Lambda(lambda x: K.zeros_like(x)[:, 0, :])(encoder_o)
+        initial_state = [initial_decoder_state, initial_attention_h]
+
         encoder_model = Model(x, [encoder_o, initial_state])
 
         # build decoder
@@ -110,8 +113,8 @@ class seq2seq_attention:
         y_emb = self.summaryModel.get_layer('embedding_summary')(y)
 
         decoder = self.summaryModel.get_layer('decoder')
-        # initial_state_new = [Input((size,)) for size in decoder.cell.state_size]
-        initial_state_new = Input((size,))
+        initial_state_new = [Input((size,)) for size in decoder.cell.state_size]
+        # initial_state_new = Input((size,))
         h1_and_state_new = decoder(y_emb, initial_state=initial_state_new, constants=x_enc_new)
 
         h1_new = h1_and_state_new[0]
