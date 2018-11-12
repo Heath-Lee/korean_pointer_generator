@@ -105,7 +105,7 @@ class seq2seq_attention:
         initial_attention_h = Lambda(lambda x: K.zeros_like(x)[:, 0, :])(encoder_o)
         initial_state = [initial_decoder_state, initial_attention_h]
 
-        encoder_model = Model(x, [encoder_o, initial_state])
+        encoder_model = Model(x, [encoder_o] + initial_state)
 
         # build decoder
         x_enc_new = Input(batch_shape=K.int_shape(encoder_o))
@@ -197,12 +197,6 @@ class seq2seq_attention:
             decoder_output = self.decoder_model.predict(
                 [y_tm1, x_enc_[:batch_size]] + state_tm1)
 
-            self.decoder_model.inputs
-            y_tm1.shape
-            x_enc_[:batch_size].shape
-            state_tm1[0].shape
-            len([y_tm1, x_enc_[:batch_size]] + state_tm1)
-
             y_pred_ = decoder_output[0]
             state_t = decoder_output[1:]
             # from each previous beam create new candidate beams and save the once
@@ -210,7 +204,7 @@ class seq2seq_attention:
             beams_updated = []
             for i, beam in enumerate(incomplete_beams):
                 l = len(beam[1]) - 1  # don't count 'start' token
-                for proba, idx in self.k_largest_val_idx(y_pred_[i, 0], branch_factor):
+                for proba, idx in self.__k_largest_val_idx(y_pred_[i, 0], branch_factor):
                     new_score = (beam[0] * l + np.log(proba)) / (l + 1)
                     not_full = len(beams_updated) < search_width
                     ended = idx == end_idx

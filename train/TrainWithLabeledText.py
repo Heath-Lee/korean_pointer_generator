@@ -130,9 +130,9 @@ if __name__ == '__main__':
                               input_tokenizer=t_txt, target_tokenizer=t_summ)
     summaryModel = model.get_model()
     summaryModel.compile(optimizer='Adam', loss='categorical_crossentropy')
-    # summaryModel.fit_generator(generator=gen, epochs=1,
-    #                            use_multiprocessing=True, workers=2,
-    #                            verbose=2)
+    summaryModel.fit_generator(generator=gen, epochs=100,
+                               use_multiprocessing=True, workers=2,
+                               verbose=2)
     model.summaryModel = summaryModel
     """
     summaryModel.fit([txt, summ_input], summ_output,
@@ -144,6 +144,12 @@ if __name__ == '__main__':
     model.build_inference_model()
 
     # run inference
-    model.inference(input_text=text_morph[0])
+    print('start inference...')
+    pred = []
+    for i in range(len(text_morph)):
+        p = model.inference(input_text=text_morph[i])
+        pred.append(p)
+
+    np.save('pred.npy', pred)
 
 
