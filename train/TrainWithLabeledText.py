@@ -100,6 +100,8 @@ class DataGenerator(keras.utils.Sequence):
 
 
 if __name__ == '__main__':
+    flag_train = False
+
     text_morph = np.load('text.npy').tolist()
     summary_morph = np.load('summary.npy').tolist()
 
@@ -130,15 +132,20 @@ if __name__ == '__main__':
                               input_tokenizer=t_txt, target_tokenizer=t_summ)
     summaryModel = model.get_model()
     summaryModel.compile(optimizer='Adam', loss='categorical_crossentropy')
-    summaryModel.fit_generator(generator=gen, epochs=100,
-                               use_multiprocessing=True, workers=2,
-                               verbose=2)
+    if flag_train:
+        summaryModel.fit_generator(generator=gen, epochs=100,
+                                   use_multiprocessing=True, workers=2,
+                                   verbose=2)
+        """
+        summaryModel.fit([txt, summ_input], summ_output,
+                         batch_size=4, epochs=25, validation_split=0.1, verbose=2)
+        """
+        summaryModel.save_weights('seq2seq_atten.h5')
+
+    else:
+        summaryModel.load_weights('seq2seq_atten.h5')
+
     model.summaryModel = summaryModel
-    """
-    summaryModel.fit([txt, summ_input], summ_output,
-                     batch_size=4, epochs=25, validation_split=0.1, verbose=2)
-    """
-    summaryModel.save_weights('seq2seq_atten.h5')
 
     # build inference model
     model.build_inference_model()
@@ -146,10 +153,28 @@ if __name__ == '__main__':
     # run inference
     print('start inference...')
     pred = []
-    for i in range(len(text_morph)):
-        p = model.inference(input_text=text_morph[i])
+    for i in tqdm(range(len(text_morph))):
+        # p = model.inference_beamsearch(input_text=text_morph[i])
+        p = model.inference_greedy(input_text=text_morph[i])
         pred.append(p)
 
-    np.save('pred.npy', pred)
+    np.save('pred_greedy.npy', pred)
+
+###
+import numpy as np
+import pandas as pd
+
+summary_morph = np.load('summary.npy')
+text_morph = np.load('text.npy')
+
+# candidate = np.load('pred.npy').tolist()
+# pred = np.array([x[0][0] for x in candidate])
+
+candidate = np.load('pred_greedy.npy').tolist()
+pred = np.array([x[0] for x in candidate])
+
+re = pd.DataFrame({'true': summary_morph, 'pred': pred, 'text': text_morph})
+re.to_csv('result_seq2seq_attention_greedy.csv', encoding='cp949')
+
 
 

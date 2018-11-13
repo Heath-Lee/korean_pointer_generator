@@ -20,6 +20,8 @@ class seq2seq_attention:
         self.input_tokenizer = input_tokenizer
         self.target_tokenizer = target_tokenizer
         self.summaryModel = None
+        self.start_token = '<start>'
+        self.end_token = '<stop>'
 
 
     def dense_maxout(self, x_):
@@ -50,8 +52,8 @@ class seq2seq_attention:
 
         # Bidirectional LSTM encoder
         encoder_out = Bidirectional(LSTM(self.hidden_dim // 2,
-                                        return_sequences=True,
-                                        return_state=True),
+                                         return_sequences=True,
+                                         return_state=True),
                                     merge_mode='concat',
                                     name='encoder')(encoder_inputs_emb)
 
@@ -101,7 +103,7 @@ class seq2seq_attention:
         initial_h_lstm = concatenate([x_enc[1], x_enc[2]])
         initial_c_lstm = concatenate([x_enc[3], x_enc[4]])
         initial_decoder_state = self.summaryModel.get_layer('decoder_state')(concatenate([initial_h_lstm,
-                                                                                  initial_c_lstm]))
+                                                                                          initial_c_lstm]))
         initial_attention_h = Lambda(lambda x: K.zeros_like(x)[:, 0, :])(encoder_o)
         initial_state = [initial_decoder_state, initial_attention_h]
 
@@ -129,10 +131,10 @@ class seq2seq_attention:
         self.decoder_model = decoder_model
 
 
-    def inference(self, input_text,
-                  search_width=5,
-                  branch_factor=None,
-                  t_max=None):
+    def inference_beamsearch(self, input_text,
+                             search_width=5,
+                             branch_factor=None,
+                             t_max=None):
         """Perform beam search to approximately find the translated sentence that
         maximises the conditional probability given the input sequence.
 
@@ -144,9 +146,6 @@ class seq2seq_attention:
             [1] "Sequence to sequence learning with neural networks"
             (https://arxiv.org/pdf/1409.3215.pdf)
         """
-        start_token = '<start>'
-        end_token = '<stop>'
-
         if branch_factor is None:
             branch_factor = search_width
         elif branch_factor > search_width:
@@ -156,8 +155,8 @@ class seq2seq_attention:
 
         # initialisation of search
         t = 0
-        y_0 = np.array(self.target_tokenizer.texts_to_sequences([start_token]))[0]
-        end_idx = self.target_tokenizer.word_index[end_token]
+        y_0 = np.array(self.target_tokenizer.texts_to_sequences([self.start_token]))[0]
+        end_idx = self.target_tokenizer.word_index[self.end_token]
 
         # run input encoding once
         x_ = np.array(self.input_tokenizer.texts_to_sequences([input_text]))
@@ -239,6 +238,36 @@ class seq2seq_attention:
             scores.append(beam[0])
 
         return output_texts, scores
+
+    def inference_greedy(self, input_text, t_max=None):
+        """Takes the most probable next token at each time step until the end-token
+        is predicted or t_max reached.
+        """
+        t = 0
+        y_t = np.array(self.target_tokenizer.texts_to_sequences([self.start_token]))
+        y_0_to_t = [y_t]
+        x_ = np.array(self.input_tokenizer.texts_to_sequences([input_text]))
+        encoder_output = self.encoder_model.predict(x_)
+        x_enc_ = encoder_output[0]
+        state_t = encoder_output[1:]
+        if t_max is None:
+            t_max = x_.shape[-1] * 2
+        end_idx = self.target_tokenizer.word_index[self.end_token]
+        score = 0  # track the cumulative log likelihood
+        while y_t[0, 0] != end_idx and t < t_max:
+            t += 1
+            decoder_output = self.decoder_model.predict([y_t, x_enc_] + state_t)
+            y_pred_ = decoder_output[0]
+            state_t = decoder_output[1:]
+            y_t = np.argmax(y_pred_, axis=-1)
+            score += np.log(y_pred_[0, 0, y_t[0, 0]])
+            y_0_to_t.append(y_t)
+        y_ = np.hstack(y_0_to_t)
+        output_text = self.target_tokenizer.sequences_to_texts(y_)[0]
+        # length normalised score, skipping start token
+        score = score / (len(y_0_to_t) - 1)
+
+        return output_text, score
 
 
 if __name__ == '__main__':
