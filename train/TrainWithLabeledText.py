@@ -20,6 +20,14 @@ def make_target_output(target):
     return target
 
 
+def make_onehot_target(target, num_token_output):
+    out = []
+    for i, x in enumerate(target):
+        x = np.array(x) - 1
+        out.append(np.eye(num_token_output)[x])
+    return out
+
+
 # input sequence length
 # seq_len = [len(x) for x in txt]
 # print('mean of input sequence length: ', np.mean(seq_len))  # 756.1045454545455
@@ -101,6 +109,43 @@ class DataGenerator(keras.utils.Sequence):
         return [batch_text, batch_summary_input], batch_summary_target
 
 
+# In future, validation generator will be used.
+def train_valid_split(txt, summ_input, summ_output, valid_index):
+    valid_index = np.array(valid_index)
+
+    # make numpy array for indexing
+    txt = np.array(txt)
+    summ_input = np.array(summ_input)
+    summ_output = np.array(summ_output)
+
+    # make validation dataset
+    valid_text = txt[valid_index].tolist()
+    valid_summary_input = summ_input[valid_index].tolist()
+    valid_summary_target = summ_output[valid_index].tolist()
+
+    # remove validation dataset in training dataset
+    txt = np.delete(txt, valid_index).tolist()
+    summ_input = np.delete(summ_input, valid_index).tolist()
+    summ_output = np.delete(summ_output, valid_index).tolist()
+
+    # preprocessing validation data
+    max_len_txt = np.max([len(x) for x in valid_text])
+    max_len_summ_input = np.max([len(x) for x in valid_summary_input])
+
+    # 1) make onehot target
+    valid_summary_target = make_onehot_target(valid_summary_target, len(t_summ.index_word))
+
+    # 2) pad sequence
+    valid_text = sequence.pad_sequences(valid_text, maxlen=max_len_txt, truncating='post', padding='pre')
+    valid_summary_input = sequence.pad_sequences(valid_summary_input, maxlen=max_len_summ_input, padding='post')
+    valid_summary_target = sequence.pad_sequences(valid_summary_target, maxlen=max_len_summ_input, padding='post')
+
+    train_dataset = (txt, summ_input, summ_output)
+    valid_dataset = ([valid_text, valid_summary_input], valid_summary_target)
+
+    return train_dataset, valid_dataset
+
+
 if __name__ == '__main__':
     flag_train = True
     type_inference = 'beamsearch'
@@ -123,16 +168,8 @@ if __name__ == '__main__':
     summ_input = make_target_input(summ)
     summ_output = make_target_output(summ)
 
-    # make validation dataset
-    valid_text = txt[valid_index]
-    valid_summ_in = summ_input[valid_index]
-    valid_summ_out = summ_output[valid_index]
-    valid_dataset = ([valid_text, valid_summ_in], valid_summ_out)
-
-    # remove validation dataset in training dataset
-    del txt[valid_index]
-    del summ_input[valid_index]
-    del summ_output[valid_index]
+    # split train/test
+    (txt, summ_input, summ_output), valid_dataset = train_valid_split(txt, summ_input, summ_output, valid_index)
 
     # generator
     gen = DataGenerator(text=txt, summary_input=summ_input,
@@ -175,7 +212,6 @@ if __name__ == '__main__':
 
     pred = []
     for i in tqdm(range(len(text_morph))):
-        summary_morph[i]
         if type_inference == 'beamsearch':
             p = model.inference_beamsearch(input_text=text_morph[i])
             p = p[0][np.argmax(p[1])]
