@@ -1,11 +1,13 @@
 import numpy as np
+import pandas as pd
 import keras
 from keras.preprocessing import text, sequence
 from model.attention_seq2seq import seq2seq_attention
 from tqdm import tqdm
+
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"   # see issue #152
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 
 def make_target_input(target):
@@ -100,10 +102,12 @@ class DataGenerator(keras.utils.Sequence):
 
 
 if __name__ == '__main__':
-    flag_train = False
+    flag_train = True
+    type_inference = 'beamsearch'
+    valid_index = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19]
 
-    text_morph = np.load('text.npy').tolist()
-    summary_morph = np.load('summary.npy').tolist()
+    text_morph = np.load('dataset/text.npy').tolist()
+    summary_morph = np.load('dataset/summary.npy').tolist()
 
     # make sequence: text
     t_txt = text.Tokenizer(filters='')
@@ -119,6 +123,17 @@ if __name__ == '__main__':
     summ_input = make_target_input(summ)
     summ_output = make_target_output(summ)
 
+    # make validation dataset
+    valid_text = txt[valid_index]
+    valid_summ_in = summ_input[valid_index]
+    valid_summ_out = summ_output[valid_index]
+    valid_dataset = ([valid_text, valid_summ_in], valid_summ_out)
+
+    # remove validation dataset in training dataset
+    del txt[valid_index]
+    del summ_input[valid_index]
+    del summ_output[valid_index]
+
     # generator
     gen = DataGenerator(text=txt, summary_input=summ_input,
                         summary_target=summ_output,
@@ -133,17 +148,22 @@ if __name__ == '__main__':
     summaryModel = model.get_model()
     summaryModel.compile(optimizer='Adam', loss='categorical_crossentropy')
     if flag_train:
-        summaryModel.fit_generator(generator=gen, epochs=100,
-                                   use_multiprocessing=True, workers=2,
-                                   verbose=2)
-        """
-        summaryModel.fit([txt, summ_input], summ_output,
-                         batch_size=4, epochs=25, validation_split=0.1, verbose=2)
-        """
-        summaryModel.save_weights('seq2seq_atten.h5')
+        checkpoint = keras.callbacks.ModelCheckpoint('results/seq2seq_atten.h5',
+                                                     monitor='val_loss', save_best_only=True,
+                                                     save_weights_only=True,
+                                                     mode='min')
+        earlystop = keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, mode='min',
+                                                  restore_best_weights=True)
+
+        summaryModel.fit_generator(generator=gen,
+                                   validation_data=valid_dataset,
+                                   epochs=150, use_multiprocessing=True,
+                                   workers=2, verbose=2, callbacks=[checkpoint, earlystop])
+
+        summaryModel.save_weights('results/seq2seq_atten.h5')
 
     else:
-        summaryModel.load_weights('seq2seq_atten.h5')
+        summaryModel.load_weights('results/seq2seq_atten.h5')
 
     model.summaryModel = summaryModel
 
@@ -152,29 +172,27 @@ if __name__ == '__main__':
 
     # run inference
     print('start inference...')
+
     pred = []
     for i in tqdm(range(len(text_morph))):
-        # p = model.inference_beamsearch(input_text=text_morph[i])
-        p = model.inference_greedy(input_text=text_morph[i])
+        summary_morph[i]
+        if type_inference == 'beamsearch':
+            p = model.inference_beamsearch(input_text=text_morph[i])
+            p = p[0][np.argmax(p[1])]
+
+        elif type_inference == 'greedy':
+            p = model.inference_greedy(input_text=text_morph[i])
+            p = p[0]
+
         pred.append(p)
 
-    np.save('pred_greedy.npy', pred)
+    np.save('results/pred_' + type_inference + '.npy', pred)
 
-###
-import numpy as np
-import pandas as pd
+    candidate = np.load('results/pred_' + type_inference + '.npy').tolist()
+    pred = np.array([x for x in candidate])
 
-summary_morph = np.load('summary.npy')
-text_morph = np.load('text.npy')
-
-# candidate = np.load('pred.npy').tolist()
-# pred = np.array([x[0][0] for x in candidate])
-
-candidate = np.load('pred_greedy.npy').tolist()
-pred = np.array([x[0] for x in candidate])
-
-re = pd.DataFrame({'true': summary_morph, 'pred': pred, 'text': text_morph})
-re.to_csv('result_seq2seq_attention_greedy.csv', encoding='cp949')
+    re = pd.DataFrame({'true': summary_morph, 'pred': pred, 'text': text_morph})
+    re.to_csv('results/result_seq2seq_attention_' + type_inference + '.csv', encoding='cp949')
 
 
 

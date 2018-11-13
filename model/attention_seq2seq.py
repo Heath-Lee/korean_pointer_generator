@@ -204,6 +204,7 @@ class seq2seq_attention:
             for i, beam in enumerate(incomplete_beams):
                 l = len(beam[1]) - 1  # don't count 'start' token
                 for proba, idx in self.__k_largest_val_idx(y_pred_[i, 0], branch_factor):
+                    idx += 1
                     new_score = (beam[0] * l + np.log(proba)) / (l + 1)
                     not_full = len(beams_updated) < search_width
                     ended = idx == end_idx
@@ -259,7 +260,7 @@ class seq2seq_attention:
             decoder_output = self.decoder_model.predict([y_t, x_enc_] + state_t)
             y_pred_ = decoder_output[0]
             state_t = decoder_output[1:]
-            y_t = np.argmax(y_pred_, axis=-1)
+            y_t = np.argmax(y_pred_, axis=-1) + 1
             score += np.log(y_pred_[0, 0, y_t[0, 0]])
             y_0_to_t.append(y_t)
         y_ = np.hstack(y_0_to_t)
